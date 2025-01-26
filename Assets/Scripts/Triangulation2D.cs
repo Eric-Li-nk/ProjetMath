@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using Object = UnityEngine.Object;
 
 public class Triangulation2D : MonoBehaviour
@@ -10,8 +11,16 @@ public class Triangulation2D : MonoBehaviour
 
     [SerializeField] private Camera _camera;
     [SerializeField] private GameObject _pointPrefab;
+    // On rangera les points générés dans un gameobject pour que ça soit plus lisible
+    [SerializeField] private Transform _pointListTransform;
+
+    [SerializeField] private LineRenderer _lineRenderer;
+
+    [SerializeField] private Transform barycenter;
 
     private List<Vector3> _pointListPosition = new List<Vector3>();
+
+    public int algoIndex = 0;
 
     private void Start()
     {
@@ -20,16 +29,11 @@ public class Triangulation2D : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Mouse0))
+        if ( Input.GetKeyDown(KeyCode.Mouse0) && !isMouseOverUI() )
         {
             AddPoint();
-            List<Vector3> P = JarvisAlgorithm();
-
-            for (int i = 1; i < P.Count; ++i)
-            {
-                Debug.DrawLine(P[i-1], P[i], Color.black, 500);
-            }
-            Debug.DrawLine(P[0], P[^1], Color.black, 500);
+            if (_pointListPosition.Count > 2)
+                CalculateConvexHull(algoIndex);
         }
     }
 
@@ -38,8 +42,41 @@ public class Triangulation2D : MonoBehaviour
         Vector3 mousePosition = Input.mousePosition;
         Vector3 mousePosToWorld = _camera.ScreenToWorldPoint(mousePosition);
         mousePosToWorld.z = 0;
-        Instantiate(_pointPrefab, mousePosToWorld, Quaternion.identity);
+
+        if (_pointListPosition.Contains(mousePosToWorld))
+        {
+            Debug.Log("Ce Point existe déjà");
+            return;
+        }
+        
+        GameObject point = Instantiate(_pointPrefab, mousePosToWorld, Quaternion.identity, _pointListTransform);
+        point.name = "Point " + _pointListPosition.Count;
         _pointListPosition.Add(mousePosToWorld);
+    }
+
+    private void CalculateConvexHull(int value)
+    {
+        List<Vector3> convexHullPoints;
+        switch (value)
+        {
+            case 0:
+                convexHullPoints = JarvisAlgorithm();
+                break;
+            case 1:
+                convexHullPoints = GrahamScanAlgorithm();
+                break;
+            default:
+                Debug.LogError("Not using any algorithm");
+                return;
+        }
+        
+        _lineRenderer.positionCount = convexHullPoints.Count;
+        _lineRenderer.SetPositions(convexHullPoints.ToArray());
+    }
+
+    public void ChangeAlgorithm(int value)
+    {
+        algoIndex = value;
     }
 
     private List<Vector3> JarvisAlgorithm()
@@ -103,6 +140,77 @@ public class Triangulation2D : MonoBehaviour
 
         return P;
     }
+    // TO DO: Vérifier si un point est à l'intérieur d'abord
+    private List<Vector3> GrahamScanAlgorithm()
+    {
+        // Debug : Affichage du Barycentre
+        Vector3 B = getBarycenter(_pointListPosition);
+        barycenter.position = B;
+
+        // Triage des points dans l'ordre croissant en fonction de l'angle du point avec le barycentre dans le sens trigonométrique
+        
+        List<float> angles = new List<float>();
+        List<Vector3> pointList = new List<Vector3>(_pointListPosition);
+        
+        foreach (var point in _pointListPosition)
+            angles.Add(get360Angle(Vector3.right, point - B));
+        
+        LinkedList<Vector3> linkedListPoints = new LinkedList<Vector3>();
+
+        for (int i = 0; i < _pointListPosition.Count; ++i)
+        {
+            int minIndex = 0;
+            for (int j = 1; j < angles.Count; ++j)
+                if (angles[j] < angles[minIndex]) minIndex = j;
+
+            linkedListPoints.AddLast(pointList[minIndex]);
+            
+            angles.RemoveAt(minIndex);
+            pointList.RemoveAt(minIndex);
+        }
+        
+        // Cours 3 page 18
+        // Utilisation d'une liste double chainée circulaire
+        // Suppression des points non convexes pour avoir l'enveloppe convexe
+        
+        LinkedListNode<Vector3> p0 = linkedListPoints.First;
+        LinkedListNode<Vector3> pivot = p0;
+        bool avance;
+        do
+        {
+            if (get360Angle(pivot.PreviousOrLast().Value - pivot.Value, pivot.NextOrFirst().Value - pivot.Value) > 180)
+            {
+                pivot = pivot.NextOrFirst();
+                avance = true;
+            }
+            else
+            {
+                p0 = pivot.PreviousOrLast();
+                linkedListPoints.Remove(pivot);
+                pivot = p0;
+                avance = false;
+            }
+        } while (pivot != p0 || avance == false);
+
+        return linkedListPoints.ToList();
+        
+    }
+
+    private Vector3 getBarycenter(List<Vector3> pList)
+    {
+        Vector3 res = Vector3.zero;
+        foreach (Vector3 v in pList)
+            res += v;
+        return res / pList.Count;
+    }
+
+    private float get360Angle(Vector3 a, Vector3 b)
+    {
+        float res = Vector3.SignedAngle(a, b, Vector3.forward);
+        if (res < 0)
+            res += 360;
+        return res;
+    }
 
     // With a lower than b
     private bool isInFront(Vector3 a, Vector3 b, Vector3 point)
@@ -118,5 +226,24 @@ public class Triangulation2D : MonoBehaviour
     {
         return a.z == b.z;
     }
+
+    private bool isMouseOverUI()
+    {
+        return EventSystem.current.IsPointerOverGameObject();
+    }
     
+}
+    
+// Ajout de méthodes d'extensions à LinkedListNode qui permet d'avoir une liste double chainée circulaire
+public static class CircularLinkedList
+{
+    public static LinkedListNode<T> NextOrFirst<T>(this LinkedListNode<T> current)
+    {
+        return current.Next ?? current.List.First;
+    }
+
+    public static LinkedListNode<T> PreviousOrLast<T>(this LinkedListNode<T> current)
+    {
+        return current.Previous ?? current.List.Last;
+    }
 }
