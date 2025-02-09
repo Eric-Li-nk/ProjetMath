@@ -5,26 +5,41 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using Object = UnityEngine.Object;
+using Random = UnityEngine.Random;
 
 public class Triangulation2D : MonoBehaviour
 {
 
     [SerializeField] private Camera _camera;
     [SerializeField] private GameObject _pointPrefab;
+    
     // On rangera les points générés dans un gameobject pour que ça soit plus lisible
     [SerializeField] private Transform _pointListTransform;
 
     [SerializeField] private LineRenderer _lineRenderer;
 
+    [SerializeField] private MeshFilter _meshFilter;
+
+    // Helper : to see the barycenter
     [SerializeField] private Transform barycenter;
 
-    private List<Vector3> _pointListPosition = new List<Vector3>();
+    private List<Vector3> _pointListPosition = new ();
 
     public int algoIndex = 0;
+    
+    private List<Sommet> _sommets;
+    private List<Arete> _aretes;
+    private List<Triangle> _triangles;
 
     private void Start()
     {
-
+        // DEBUG
+        AddPoint(new Vector3(0,-2,0));
+        AddPoint(new Vector3(0,1,0));
+        AddPoint(new Vector3(0,3,0));
+        AddPoint(new Vector3(1,3,0));
+        AddPoint(new Vector3(0,-3,0));
+        // DEBUG
     }
 
     private void Update()
@@ -37,21 +52,233 @@ public class Triangulation2D : MonoBehaviour
         }
     }
 
+    
+    // Cours 4
+    public void Triangulate2DIncremental()
+    {
+        if (_pointListPosition.Count < 3)
+        {
+            Debug.LogError("Pas assez de points !");
+            return;
+        }
+        
+        List<Vector3> pList = new List<Vector3>(_pointListPosition);
+
+        _sommets = new List<Sommet>();
+        _aretes = new List<Arete>();
+        _triangles = new List<Triangle>();
+        // C'est possible d'utiliser l'un des algorithm pour calculer l'enveloppe convexe mais c'est plus coûteux, on calculera l'enveloppe convexe par incrémentation
+        // On utilisera une liste d'arete plutot qu'un liste de sommet, plus simple
+        List<Arete> _convexhull = new List<Arete>(); 
+
+        pList = pList.OrderBy(value => value.x).ThenBy(value => value.y).ToList();
+        
+        int i = 1;
+        Sommet s = new Sommet(0, pList[0]);
+        _sommets.Add(s);
+        
+        // 2)
+        // Problème rencontré, le cours ne prend pas en compte l'état où il n'y a pas 2 sommet initials aux même abscisse et différents ordonnée
+        // 2.a)
+        
+        while (pList[i].x == pList[i-1].x)
+        {
+            s = new Sommet(i, pList[i]);            
+            _sommets.Add(s);
+            Arete a = new Arete(_sommets[i - 1], _sommets[i]);
+            _convexhull.Add(a);
+            _aretes.Add(a);
+            s.a = a;
+            i++;
+        }
+
+        List<int> indices = new List<int>();
+
+        s = new Sommet(i, pList[i]);
+        _sommets.Add(s);
+        int initialAretesCount = _aretes.Count;
+        for (int j = 0; j < initialAretesCount; ++j)
+        {   
+            CreateTriangle2D(_triangles, _aretes, _aretes[j], s);
+            
+            // On ajoute les index des sommets dans le sens horaire
+            indices.Add(i);
+            indices.Add(_aretes[j].s1.index);
+            indices.Add(_aretes[j].s2.index);
+        }
+        
+        // Correction du problème évoqué plus haut
+        // On crée un triangle initiale s'il n'y a pas encore de triangle
+        if (_aretes.Count <= 0)
+        {
+            Arete a = new Arete(_sommets[i - 1], _sommets[i]);
+            _aretes.Add(a);
+            _sommets[i - 1].a = a;
+            _sommets[i].a = a;
+            i++;
+            s = new Sommet(i, pList[i]);
+            _sommets.Add(s);
+            CreateTriangle2D(_triangles, _aretes, a, s);
+            bool areteLeftFree = a.tg == null;
+            if (!areteLeftFree)
+            {
+                indices.Add(a.s1.index);
+                indices.Add(i);
+                indices.Add(a.s2.index);
+            }
+            else
+            {
+                indices.Add(i);
+                indices.Add(a.s1.index);
+                indices.Add(a.s2.index);
+            }
+        }
+
+        i++;
+
+        // 3)
+        
+        while ( i < _pointListPosition.Count)
+        {
+            s = new Sommet(i, pList[i]);
+            _sommets.Add(s);
+            initialAretesCount = _aretes.Count;
+            for (int j = 0; j < initialAretesCount; ++j)
+            {
+                Arete arete = _aretes[j];
+                bool areteLeftFree = arete.tg == null;
+                if (arete.HasInFront2D(s))
+                {
+                    CreateTriangle2D(_triangles, _aretes, arete, s);
+                    
+                    if (!areteLeftFree)
+                    {
+                        indices.Add(i);
+                        indices.Add(arete.s1.index);
+                        indices.Add(arete.s2.index);
+                    }
+                    else
+                    {
+                        indices.Add(arete.s1.index);
+                        indices.Add(i);
+                        indices.Add(arete.s2.index);
+                    }
+                }
+            }
+            i++;
+        }
+        
+        // CETTE VALEUR N'EST PAS UTILISÉE
+        // un peu compliqué de colorer individuellement les triangles sans retoucher toucher aux shaders / faire dupliquer les vertices
+        // On affectera une couleur random aux sommet pour que la triangulation soit plus visible (au lieu d'avoir un mur blanc)
+        Color[] colors = new Color[_pointListPosition.Count];
+        for (int k = 0; k < colors.Length; ++k)
+            colors[k] = new Color(Random.value, Random.value, Random.value);
+
+        _meshFilter.mesh.vertices = pList.ToArray();        
+        _meshFilter.mesh.colors = colors;
+        _meshFilter.mesh.triangles = indices.ToArray();
+        _meshFilter.mesh.RecalculateNormals();
+    }
+    // FOOTNOTE: 
+
+    
+    // Création d'un triangle pour la Triangulation 2D incrémentale
+    // On assume que l'arete est toujours à gauche du sommet
+    private void CreateTriangle2D(List<Triangle> triangles, List<Arete> aretes, Arete a1, Sommet s3)
+    {
+        Arete a2 = null;
+        Arete a3 = null;
+        // On cherche si l'arête existe déjà
+        foreach (var arete in _aretes)
+        {
+            if (arete.isEqual(a1.s1, s3))
+                a2 = arete;
+            else if (arete.isEqual(a1.s2, s3))
+                a3 = arete;
+        }
+
+        if (a2 == null)
+        {
+            a2 = new Arete(a1.s1, s3);
+            aretes.Add(a2);
+        }
+        if (a3 == null)
+        {
+            a3 = new Arete(a1.s2, s3);
+            aretes.Add(a3);
+        }
+        s3.a = a2;
+
+        // Méthode obsolète si on se contente juste du sens et non de où le sens commence
+        // Affectation strict dans le sens trigonométrique (Prend le premier arête en partant de Vecteur3.right en tournant vers le sens trigo,
+        // l'arête doit apparaître en entier (1 point en haut de vecteur3.right et 1 point en bas de vecteur.right sera dernier dans la liste))
+
+        // On affecte les aretes au triangle dans le sens trigonométrique
+        // Pour trier les aretes, on prend la valeur maximum des angles entre les points de l'arete et le barycentre et on les range dans l'ordre croissant
+        Vector3 b = GetBarycenter(a1.s1.p, a1.s2.p, s3.p);
+        Arete[] aList = { a1, a2, a3 };
+        aList = aList.OrderBy(a => Mathf.Max(get360Angle(Vector3.right, a.s1.p - b),
+            get360Angle(Vector3.right, a.s2.p - b))).ToArray();
+
+        Triangle res = new Triangle(aList[0], aList[1], aList[2]);
+
+        // On affecte le triangle aux aretes
+        if (IsInFront2D(a1, s3)) 
+            a1.td = res;
+        else 
+            a1.tg = res;
+        if (IsInFront2D(a2, a1.s2))
+            a2.td = res;
+        else
+            a2.tg = res;
+        if (IsInFront2D(a3, a1.s1))
+            a3.td = res;
+        else
+            a3.tg = res;
+        
+        triangles.Add(res);
+    }
+
+    private Vector3 GetBarycenter(Vector3 a, Vector3 b, Vector3 c)
+    {
+        return (a + b + c) / 3;
+    }
+    
+    // orienté: a -> b
+    private bool IsInFront2D(Vector3 a, Vector3 b, Vector3 point)
+    {
+        
+        Vector3 temp = a - b;
+        Vector3 normal = new Vector3(-temp.y, temp.x, 0);
+        //Debug.DrawLine((a+b)/2,(a+b)/2+normal, Color.blue, 90);
+        return Vector3.Dot(normal, point - a) + Vector3.Dot(normal, point - b) > 0;
+    }
+
+    private bool IsInFront2D(Arete a1, Sommet s3)
+    {
+        return IsInFront2D(a1.s1.p, a1.s2.p, s3.p);
+    }
+
     private void AddPoint()
     {
         Vector3 mousePosition = Input.mousePosition;
         Vector3 mousePosToWorld = _camera.ScreenToWorldPoint(mousePosition);
         mousePosToWorld.z = 0;
 
-        if (_pointListPosition.Contains(mousePosToWorld))
+        AddPoint(mousePosToWorld);
+    }
+
+    private void AddPoint(Vector3 position)
+    {
+        if (_pointListPosition.Contains(position))
         {
             Debug.Log("Ce Point existe déjà");
             return;
         }
-        
-        GameObject point = Instantiate(_pointPrefab, mousePosToWorld, Quaternion.identity, _pointListTransform);
+        GameObject point = Instantiate(_pointPrefab, position, Quaternion.identity, _pointListTransform);
         point.name = "Point " + _pointListPosition.Count;
-        _pointListPosition.Add(mousePosToWorld);
+        _pointListPosition.Add(position);
     }
 
     private void CalculateConvexHull(int value)
@@ -72,11 +299,6 @@ public class Triangulation2D : MonoBehaviour
         
         _lineRenderer.positionCount = convexHullPoints.Count;
         _lineRenderer.SetPositions(convexHullPoints.ToArray());
-    }
-
-    public void ChangeAlgorithm(int value)
-    {
-        algoIndex = value;
     }
 
     private List<Vector3> JarvisAlgorithm()
@@ -140,7 +362,7 @@ public class Triangulation2D : MonoBehaviour
 
         return P;
     }
-    // TO DO: Vérifier si un point est à l'intérieur d'abord
+    
     private List<Vector3> GrahamScanAlgorithm()
     {
         // Debug : Affichage du Barycentre
@@ -212,24 +434,17 @@ public class Triangulation2D : MonoBehaviour
         return res;
     }
 
-    // With a lower than b
-    private bool isInFront(Vector3 a, Vector3 b, Vector3 point)
-    {
-        
-        Vector3 temp = a - b;
-        Vector3 normal = new Vector3(-temp.z, temp.y, temp.x);
-        //Debug.DrawLine((a+b)/2,(a+b)/2+normal, Color.blue, 90);
-        return Vector3.Dot(normal, point - a) + Vector3.Dot(normal, point - b) > 0;
-    }
-
-    private bool sameAbscisse(Vector3 a, Vector3 b)
-    {
-        return a.z == b.z;
-    }
-
+    
+    // Various Helper for smooth interaction
+    
     private bool isMouseOverUI()
     {
         return EventSystem.current.IsPointerOverGameObject();
+    }
+
+    public void ChangeAlgorithm(int value)
+    {
+        algoIndex = value;
     }
     
 }
