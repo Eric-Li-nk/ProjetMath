@@ -283,7 +283,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Generate Points
+  m_text: Delaunay 3D
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -675,7 +675,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Enveloppe Incremental
+  m_text: Enveloppe Incremental 3D
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -831,6 +831,7 @@ GameObject:
   - component: {fileID: 1487312350}
   - component: {fileID: 1487312349}
   - component: {fileID: 1487312351}
+  - component: {fileID: 1487312352}
   m_Layer: 0
   m_Name: PointManager
   m_TagString: Untagged
@@ -887,6 +888,21 @@ MonoBehaviour:
   pointsParent: {fileID: 1045678792}
   hullMaterial: {fileID: 2100000, guid: 4a2f59d2e67c444448c167810aa93b37, type: 2}
   lineMaterial: {fileID: 2100000, guid: 2039700a8acf63341bc4106a7f0c86fb, type: 2}
+--- !u!114 &1487312352
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1487312348}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 70f2b7d7ba7a75e41a93a2f42d20e217, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  pointsParent: {fileID: 1045678792}
+  delaunayMaterial: {fileID: 2100000, guid: 4a2f59d2e67c444448c167810aa93b37, type: 2}
+  tolerance: 0.000001
 --- !u!1 &1722664536
 GameObject:
   m_ObjectHideFlags: 0
@@ -900,7 +916,7 @@ GameObject:
   - component: {fileID: 1722664539}
   - component: {fileID: 1722664538}
   m_Layer: 5
-  m_Name: BTN_GeneratePoint
+  m_Name: BTN_Delaunay
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -970,9 +986,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1487312349}
-        m_TargetAssemblyTypeName: PointCloudGenerator3D, Assembly-CSharp
-        m_MethodName: GeneratePoints
+      - m_Target: {fileID: 1487312352}
+        m_TargetAssemblyTypeName: DelaunayTriangulation3D, Assembly-CSharp
+        m_MethodName: ComputeDelaunayLifting
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
