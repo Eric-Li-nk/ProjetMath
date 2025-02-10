@@ -23,8 +23,8 @@ public class Sommet
 public class Arete
 {    
     // Arête orienté: s1 -> s2
-    public Sommet s1 { get; }
-    public Sommet s2 { get; }
+    public Sommet s1 { get; set; }
+    public Sommet s2 { get; set; }
     public Triangle tg { get; set; }
     public Triangle td { get; set; }
 
@@ -81,14 +81,37 @@ public class Arete
 
 public class Triangle
 {
-    public Arete a1;
-    public Arete a2;
-    public Arete a3;
+    public static int counter;
+    public int index;
+    public Sommet[] sommets;
+    public Arete[] aretes;
 
-    public Triangle(Arete a1, Arete a2, Arete a3)
+    public Triangle(Sommet[] sommets, Arete[] aretes)
     {
-        this.a1 = a1;
-        this.a2 = a2;
-        this.a3 = a3;
+        this.index = counter;
+        this.sommets = sommets;
+        this.aretes = aretes;
+        counter++;
+    }
+
+    public int FindAreteIndex(Arete a)
+    {
+        for (int i = 0; i < aretes.Length; i++)
+        {
+            if (aretes[i] == a)
+                return i;
+        }
+        return -1;
+    }
+
+    public Sommet GetOppositePoint(Arete a)
+    {
+        foreach (var s in sommets)
+        {
+            if (s != a.s1 && s != a.s2)
+                return s;
+        }
+        Debug.LogError("Pas trouvé : " + sommets[0].index + " " + sommets[1].index + " " + sommets[2].index + " ");
+        return null;
     }
 }

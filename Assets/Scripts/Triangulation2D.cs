@@ -34,11 +34,13 @@ public class Triangulation2D : MonoBehaviour
     private void Start()
     {
         // DEBUG
+        /*
         AddPoint(new Vector3(0,-2,0));
         AddPoint(new Vector3(0,1,0));
         AddPoint(new Vector3(0,3,0));
         AddPoint(new Vector3(1,3,0));
         AddPoint(new Vector3(0,-3,0));
+        */
         // DEBUG
     }
 
@@ -56,6 +58,9 @@ public class Triangulation2D : MonoBehaviour
     // Cours 4
     public void Triangulate2DIncremental()
     {
+        // On réinitialise le nombre de triangles
+        Triangle.counter = 0;
+        
         if (_pointListPosition.Count < 3)
         {
             Debug.LogError("Pas assez de points !");
@@ -180,9 +185,116 @@ public class Triangulation2D : MonoBehaviour
         _meshFilter.mesh.triangles = indices.ToArray();
         _meshFilter.mesh.RecalculateNormals();
     }
-    // FOOTNOTE: 
+    // FOOTNOTE: Prendre en compte les points mit dans les triangles est possible mais ce sera plus une triangulation incrémentale 2D
+     
+    // Cours 4 p30
+    public void DelaunayAreteFlipping()
+    {
+        // Liste des arêtes initiales
+        List<Arete> aretes = new List<Arete>(_aretes);
+        int i = 0;
+        while (aretes.Count > 0)
+        {
+            Arete arete = aretes[0];
+            aretes.Remove(arete);
+            if (!IsLocalDelaunay(arete))
+            {
+                if (arete.tg == arete.td)
+                {
+                    Debug.LogError("Les triangles " + arete.tg.index + " et " + arete.td.index + " sont les même !");
+                    Debug.LogError("Arête: " + arete.s1.index + " " + arete.s2.index);
+                }
+                Triangle t2 = arete.tg;
+                Triangle t1 = arete.td;
+                
+                {
+                    
+                    /*
+                    foreach (var a in t2.aretes)
+                    {
+                        Debug.DrawLine(a.s1.p, a.s2.p, Color.magenta, 10);
+                    }*/
+                    //Debug.DrawLine(arete.s1.p, arete.s2.p, Color.red, 10);
 
-    
+                }
+                Sommet s1 = arete.s1;
+                Sommet s2 = arete.s2;
+                
+                Sommet s3 = t2.GetOppositePoint(arete);
+                Sommet s4 = t1.GetOppositePoint(arete);
+                
+                int temp = t2.FindAreteIndex(arete);                
+                Arete a3 = t2.aretes[(temp + 1) % 3];
+                Arete a2 = t2.aretes[(temp + 2) % 3];
+
+                temp = t1.FindAreteIndex(arete);
+                Arete a1 = t1.aretes[(temp + 1) % 3];
+                Arete a4 = t1.aretes[(temp + 2) % 3];
+                
+                arete.s1 = s3;
+                arete.s2 = s4;
+                
+                t1.sommets = new []{ s3, s1, s4 };
+                t1.aretes = new[] { arete, a2, a1 };
+
+                if (s3 == s4)
+                {
+                    Debug.LogError("s3 == s4 SAME SOMMETS ATTENTION OuLAAAAAA");
+                    Debug.LogError(t1.index + " " + t2.index);
+                }
+                t2.sommets = new[] { s3, s4, s2 };
+                t2.aretes = new[] { arete, a4, a3 };
+
+                s1.a = a1;
+                s2.a = a3;
+                
+                if (a2.s1 == s3)
+                    a2.tg = t1;
+                else
+                    a2.td = t1;
+                if (a4.s1 == s4)
+                    a4.tg = t2;
+                else
+                    a4.td = t2;
+
+                aretes.AddRange(new []{a1, a2, a3, a4});
+
+                List<int> indices = new List<int>(_meshFilter.mesh.triangles);
+                
+                indices[t1.index * 3] = s3.index;
+                indices[t1.index * 3 + 1] = s4.index;
+                indices[t1.index * 3 + 2] = s1.index;
+                
+                indices[t2.index * 3] = s3.index;
+                indices[t2.index * 3 + 1] = s2.index;
+                indices[t2.index * 3 + 2] = s4.index;
+
+                _meshFilter.mesh.triangles = indices.ToArray();
+                
+                Debug.Log("Completed !");
+                i++;
+                
+            }
+        }
+        
+    }
+
+    // Si le point isolé du triangle opposé est contenu dans le cercle circonscrit du triangle initial, return false
+    private bool IsLocalDelaunay(Arete a1)
+    {
+        if (a1.td == null || a1.tg == null)
+            return true;
+
+        Triangle t1 = a1.tg;
+        Triangle t2 = a1.td;
+        
+        Sommet s2 = t2.GetOppositePoint(a1);
+
+        Vector2 center1 = GeometryUtility.CentreCercleCirconscrit(t1);
+
+        return Vector2.Distance(s2.p, center1) > Vector2.Distance(center1, t1.sommets[0].p);
+    }
+
     // Création d'un triangle pour la Triangulation 2D incrémentale
     // On assume que l'arete est toujours à gauche du sommet
     private void CreateTriangle2D(List<Triangle> triangles, List<Arete> aretes, Arete a1, Sommet s3)
@@ -221,7 +333,7 @@ public class Triangulation2D : MonoBehaviour
         aList = aList.OrderBy(a => Mathf.Max(get360Angle(Vector3.right, a.s1.p - b),
             get360Angle(Vector3.right, a.s2.p - b))).ToArray();
 
-        Triangle res = new Triangle(aList[0], aList[1], aList[2]);
+        Triangle res = new Triangle(new []{a1.s1, a1.s2, s3},aList);
 
         // On affecte le triangle aux aretes
         if (IsInFront2D(a1, s3)) 
