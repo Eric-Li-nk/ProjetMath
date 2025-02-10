@@ -31,6 +31,9 @@ public class Triangulation2D : MonoBehaviour
     private List<Arete> _aretes;
     private List<Triangle> _triangles;
 
+    [SerializeField] private LineRenderer _voronoiLineRenderer;
+    private Voronoi2D _voronoiDiagram = new();
+
     private void Start()
     {
         // DEBUG
@@ -563,7 +566,25 @@ public class Triangulation2D : MonoBehaviour
     {
         algoIndex = value;
     }
-    
+
+
+    public void GenerateAndDrawVoronoi()
+    {
+        _voronoiDiagram.GenerateVoronoi(_triangles, _aretes, _sommets);
+
+        var edges = _voronoiDiagram.GetVoronoiEdges();
+        var positions = new Vector3[edges.Count * 2];
+
+        for (int i = 0; i < edges.Count; i++)
+        {
+            positions[i * 2] = edges[i].Item1;
+            positions[i * 2 + 1] = edges[i].Item2;
+        }
+
+        _voronoiLineRenderer.positionCount = positions.Length;
+        _voronoiLineRenderer.SetPositions(positions);
+    }
+
 }
     
 // Ajout de méthodes d'extensions à LinkedListNode qui permet d'avoir une liste double chainée circulaire
