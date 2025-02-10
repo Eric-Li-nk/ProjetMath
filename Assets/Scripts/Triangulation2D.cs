@@ -585,6 +585,37 @@ public class Triangulation2D : MonoBehaviour
         _voronoiLineRenderer.SetPositions(positions);
     }
 
+    public void ClearAll()
+    {
+        _pointListPosition.Clear();
+
+        foreach (Transform child in _pointListTransform)
+        {
+            Destroy(child.gameObject);
+        }
+
+        _sommets?.Clear();
+        _aretes?.Clear();
+        _triangles?.Clear();
+
+        if (_lineRenderer != null)
+        {
+            _lineRenderer.positionCount = 0;
+        }
+
+        if (_voronoiLineRenderer != null)
+        {
+            _voronoiLineRenderer.positionCount = 0;
+        }
+
+        if (_meshFilter != null && _meshFilter.mesh != null)
+        {
+            _meshFilter.mesh.Clear();
+        }
+
+        Triangle.counter = 0;
+    }
+
 }
     
 // Ajout de méthodes d'extensions à LinkedListNode qui permet d'avoir une liste double chainée circulaire
