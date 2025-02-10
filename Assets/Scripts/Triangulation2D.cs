@@ -184,6 +184,9 @@ public class Triangulation2D : MonoBehaviour
         _meshFilter.mesh.colors = colors;
         _meshFilter.mesh.triangles = indices.ToArray();
         _meshFilter.mesh.RecalculateNormals();
+        
+        // Debug: Pour voir si les triangle sont bien créer avec les arêtes dans l'ordre trigonométrique (r à g à b)
+        //StartCoroutine(DebugTriangle());
     }
     // FOOTNOTE: Prendre en compte les points mit dans les triangles est possible mais ce sera plus une triangulation incrémentale 2D
      
@@ -192,31 +195,17 @@ public class Triangulation2D : MonoBehaviour
     {
         // Liste des arêtes initiales
         List<Arete> aretes = new List<Arete>(_aretes);
-        int i = 0;
+        
         while (aretes.Count > 0)
         {
             Arete arete = aretes[0];
             aretes.Remove(arete);
             if (!IsLocalDelaunay(arete))
             {
-                if (arete.tg == arete.td)
-                {
-                    Debug.LogError("Les triangles " + arete.tg.index + " et " + arete.td.index + " sont les même !");
-                    Debug.LogError("Arête: " + arete.s1.index + " " + arete.s2.index);
-                }
+                
                 Triangle t2 = arete.tg;
                 Triangle t1 = arete.td;
                 
-                {
-                    
-                    /*
-                    foreach (var a in t2.aretes)
-                    {
-                        Debug.DrawLine(a.s1.p, a.s2.p, Color.magenta, 10);
-                    }*/
-                    //Debug.DrawLine(arete.s1.p, arete.s2.p, Color.red, 10);
-
-                }
                 Sommet s1 = arete.s1;
                 Sommet s2 = arete.s2;
                 
@@ -237,11 +226,6 @@ public class Triangulation2D : MonoBehaviour
                 t1.sommets = new []{ s3, s1, s4 };
                 t1.aretes = new[] { arete, a2, a1 };
 
-                if (s3 == s4)
-                {
-                    Debug.LogError("s3 == s4 SAME SOMMETS ATTENTION OuLAAAAAA");
-                    Debug.LogError(t1.index + " " + t2.index);
-                }
                 t2.sommets = new[] { s3, s4, s2 };
                 t2.aretes = new[] { arete, a4, a3 };
 
@@ -271,12 +255,22 @@ public class Triangulation2D : MonoBehaviour
 
                 _meshFilter.mesh.triangles = indices.ToArray();
                 
-                Debug.Log("Completed !");
-                i++;
-                
             }
         }
         
+    }
+
+    public IEnumerator DebugTriangle()
+    {
+        float duration = 2;
+        foreach (var res in _triangles)
+        {
+            Debug.DrawLine(res.aretes[0].s1.p, res.aretes[0].s2.p, Color.red, duration);
+            Debug.DrawLine(res.aretes[1].s1.p, res.aretes[1].s2.p, Color.green, duration);
+            Debug.DrawLine(res.aretes[2].s1.p, res.aretes[2].s2.p, Color.blue, duration);
+            yield return new WaitForSeconds(duration);
+        }
+
     }
 
     // Si le point isolé du triangle opposé est contenu dans le cercle circonscrit du triangle initial, return false
@@ -325,15 +319,26 @@ public class Triangulation2D : MonoBehaviour
         // Méthode obsolète si on se contente juste du sens et non de où le sens commence
         // Affectation strict dans le sens trigonométrique (Prend le premier arête en partant de Vecteur3.right en tournant vers le sens trigo,
         // l'arête doit apparaître en entier (1 point en haut de vecteur3.right et 1 point en bas de vecteur.right sera dernier dans la liste))
-
+        // nope, Cette méthode ne donne pas de bon résultat, prendre la moitié de l'arête non plus
         // On affecte les aretes au triangle dans le sens trigonométrique
         // Pour trier les aretes, on prend la valeur maximum des angles entre les points de l'arete et le barycentre et on les range dans l'ordre croissant
+        //aList = aList.OrderBy(a => Mathf.Max(get360Angle(Vector3.right, a.s1.p - b),
+        //    get360Angle(Vector3.right, a.s2.p - b))).ToArray();
+        
+        // On affecte les aretes au triangle dans le sens trigonométrique
+        // Pour trier les aretes, on trie les sommets dans l'ordre trigonométrique d'abord puis on séléctione les arêtes qui correspondent aux sommets dans l'ordre donnée
         Vector3 b = GetBarycenter(a1.s1.p, a1.s2.p, s3.p);
-        Arete[] aList = { a1, a2, a3 };
-        aList = aList.OrderBy(a => Mathf.Max(get360Angle(Vector3.right, a.s1.p - b),
-            get360Angle(Vector3.right, a.s2.p - b))).ToArray();
+        Sommet[] sList = { a1.s1, a1.s2, s3 };
+        sList = sList.OrderBy(s => get360Angle(Vector3.right, s.p - b)).ToArray();
+        List<Arete> aListtemp = new List<Arete>{ a1, a2, a3 };
+        Arete[] aList = new Arete[3];
+        
+        for (int i = 0; i < 3; i++)
+        {
+            aList[i] = aListtemp.Find(a => a.s1 == sList[i] && a.s2 == sList[(i + 1) % 3] || a.s2 == sList[i] && a.s1 == sList[(i + 1) % 3]);
+        }
 
-        Triangle res = new Triangle(new []{a1.s1, a1.s2, s3},aList);
+        Triangle res = new Triangle(sList ,aList);
 
         // On affecte le triangle aux aretes
         if (IsInFront2D(a1, s3)) 

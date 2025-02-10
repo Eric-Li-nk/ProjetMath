@@ -11,7 +11,7 @@ public class GeometryUtility
         Vector2 b = t1.sommets[1].p;
         Vector2 c = t1.sommets[2].p;
 
-        float delta = ((a.x * b.y) - (b.x * a.y)) - ((a.x * c.y) - (c.x * a.y)) + ((b.x * c.y) - (c.x * b.y));
+        float delta = 2 * (((a.x * b.y) - (b.x * a.y)) - ((a.x * c.y) - (c.x * a.y)) + ((b.x * c.y) - (c.x * b.y)));
 
         float x = (
             (a.x * a.x + a.y * a.y) * (b.y - c.y) +
