@@ -14,6 +14,8 @@ public class Voronoi2D
         if (sommets.Count < 3) return true;
 
         Vector2 direction = ((Vector2)sommets[1].p - (Vector2)sommets[0].p).normalized;
+
+        //collinéraité
         for (int i = 2; i < sommets.Count; i++)
         {
             Vector2 currentDir = ((Vector2)sommets[i].p - (Vector2)sommets[0].p).normalized;
@@ -102,6 +104,28 @@ public class Voronoi2D
                 _voronoiEdges.Add((center, center + direction * EDGE_LENGTH));
             }
         }
+
+        // regions
+        foreach (var sommet in sommets)
+        {
+            var incidentTriangles = triangles.Where(t => t.sommets.Contains(sommet)).ToList();
+            if (incidentTriangles.Count > 0)
+            {
+                var regionPoints = incidentTriangles.Select(t => circumcenters[t]).ToList();
+                SortPointsClockwise(regionPoints, (Vector2)sommet.p);
+                _voronoiRegions[sommet] = regionPoints;
+            }
+        }
+    }
+
+    private void SortPointsClockwise(List<Vector2> points, Vector2 center)
+    {
+        points.Sort((a, b) =>
+        {
+            float angleA = Mathf.Atan2(a.y - center.y, a.x - center.x);
+            float angleB = Mathf.Atan2(b.y - center.y, b.x - center.x);
+            return angleA.CompareTo(angleB);
+        });
     }
 
     public List<(Vector2, Vector2)> GetVoronoiEdges() => _voronoiEdges;
