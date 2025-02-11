@@ -74,6 +74,7 @@ public class Voronoi2D
                 Vector2 center = circumcenters[triangle];
                 Vector2 direction = (edgeMiddle - center).normalized;
 
+                //algo qui check si le centre se trouve dans un des triangles
                 bool isInsideAnyTriangle = false;
                 foreach (var tri in triangles)
                 {
@@ -100,33 +101,8 @@ public class Voronoi2D
 
                 _voronoiEdges.Add((center, center + direction * EDGE_LENGTH));
             }
-            
         }
-
-            // regions
-            foreach (var sommet in sommets)
-        {
-            var incidentTriangles = triangles.Where(t => t.sommets.Contains(sommet)).ToList();
-            if (incidentTriangles.Count > 0)
-            {
-                var regionPoints = incidentTriangles.Select(t => circumcenters[t]).ToList();
-                SortPointsClockwise(regionPoints, (Vector2)sommet.p);
-                _voronoiRegions[sommet] = regionPoints;
-            }
-        }
-    }
-
-    private void SortPointsClockwise(List<Vector2> points, Vector2 center)
-    {
-        points.Sort((a, b) =>
-        {
-            float angleA = Mathf.Atan2(a.y - center.y, a.x - center.x);
-            float angleB = Mathf.Atan2(b.y - center.y, b.x - center.x);
-            return angleA.CompareTo(angleB);
-        });
     }
 
     public List<(Vector2, Vector2)> GetVoronoiEdges() => _voronoiEdges;
-    public Dictionary<Sommet, List<Vector2>> GetVoronoiRegions() => _voronoiRegions;
-    public List<Vector2> GetCenters() => _centers;
 }
