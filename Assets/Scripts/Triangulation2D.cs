@@ -954,18 +954,31 @@ public class Triangulation2D : MonoBehaviour
     public void GenerateAndDrawVoronoi()
     {
         _voronoiDiagram.GenerateVoronoi(_triangles, _aretes, _sommets);
-
         var edges = _voronoiDiagram.GetVoronoiEdges();
-        var positions = new Vector3[edges.Count * 2];
 
-        for (int i = 0; i < edges.Count; i++)
+        if (GameObject.FindGameObjectsWithTag("VoronoiLine") != null)
         {
-            positions[i * 2] = edges[i].Item1;
-            positions[i * 2 + 1] = edges[i].Item2;
+            var oldLines = GameObject.FindGameObjectsWithTag("VoronoiLine");
+            foreach (var line in oldLines)
+            {
+                DestroyImmediate(line);
+            }
         }
 
-        _voronoiLineRenderer.positionCount = positions.Length;
-        _voronoiLineRenderer.SetPositions(positions);
+        foreach (var edge in edges)
+        {
+            GameObject lineObj = new GameObject("VoronoiLine");
+            lineObj.tag = "VoronoiLine";
+            LineRenderer lineRenderer = lineObj.AddComponent<LineRenderer>();
+
+            lineRenderer.startWidth = _voronoiLineRenderer.startWidth;
+            lineRenderer.endWidth = _voronoiLineRenderer.endWidth;
+            lineRenderer.material = _voronoiLineRenderer.material;
+
+            lineRenderer.positionCount = 2;
+            lineRenderer.SetPosition(0, edge.Item1);
+            lineRenderer.SetPosition(1, edge.Item2);
+        }
     }
 
     public void ClearAll()
@@ -999,6 +1012,7 @@ public class Triangulation2D : MonoBehaviour
         Triangle.counter = 0;
     }
 
+
 }
     
 // Ajout de méthodes d'extensions à LinkedListNode qui permet d'avoir une liste double chainée circulaire
@@ -1014,3 +1028,4 @@ public static class CircularLinkedList
         return current.Previous ?? current.List.Last;
     }
 }
+

@@ -55,7 +55,6 @@ public class Voronoi2D
 
         foreach (var arete in aretes)
         {
-            Vector2 edgeMiddle = ((Vector2)arete.s1.p + (Vector2)arete.s2.p) * 0.5f;
 
             if (arete.tg != null && arete.td != null)
             {
@@ -66,41 +65,44 @@ public class Voronoi2D
                 {
                     _voronoiEdges.Add((center1, center2));
                 }
-                else if (arete.tg != null || arete.td != null)
-                {
-                    //Externe
-                    Triangle triangle = arete.tg ?? arete.td;
-                    Vector2 center = circumcenters[triangle];
-                    Vector2 direction = (edgeMiddle - center).normalized;
-                    _voronoiEdges.Add((center, center + direction * EDGE_LENGTH));
-                }
             }
-        }
-
-            // regions
-            foreach (var sommet in sommets)
-        {
-            var incidentTriangles = triangles.Where(t => t.sommets.Contains(sommet)).ToList();
-            if (incidentTriangles.Count > 0)
+            else if (arete.tg != null || arete.td != null)
             {
-                var regionPoints = incidentTriangles.Select(t => circumcenters[t]).ToList();
-                SortPointsClockwise(regionPoints, (Vector2)sommet.p);
-                _voronoiRegions[sommet] = regionPoints;
+                //Externe
+                Vector2 edgeMiddle = ((Vector2)arete.s1.p + (Vector2)arete.s2.p) * 0.5f;
+                Triangle triangle = arete.tg ?? arete.td;
+                Vector2 center = circumcenters[triangle];
+                Vector2 direction = (edgeMiddle - center).normalized;
+
+                //algo qui check si le centre se trouve dans un des triangles
+                bool isInsideAnyTriangle = false;
+                foreach (var tri in triangles)
+                {
+                    Vector2 a = (Vector2)tri.sommets[0].p;
+                    Vector2 b = (Vector2)tri.sommets[1].p;
+                    Vector2 c = (Vector2)tri.sommets[2].p;
+
+                    float denominator = ((b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y));
+                    float u = ((b.y - c.y) * (center.x - c.x) + (c.x - b.x) * (center.y - c.y)) / denominator;
+                    float v = ((c.y - a.y) * (center.x - c.x) + (a.x - c.x) * (center.y - c.y)) / denominator;
+                    float w = 1 - u - v;
+
+                    if (u >= 0 && v >= 0 && w >= 0)
+                    {
+                        isInsideAnyTriangle = true;
+                        break;
+                    }
+                }
+
+                if (!isInsideAnyTriangle)
+                {
+                    direction = -direction;
+                }
+
+                _voronoiEdges.Add((center, center + direction * EDGE_LENGTH));
             }
         }
-    }
-
-    private void SortPointsClockwise(List<Vector2> points, Vector2 center)
-    {
-        points.Sort((a, b) =>
-        {
-            float angleA = Mathf.Atan2(a.y - center.y, a.x - center.x);
-            float angleB = Mathf.Atan2(b.y - center.y, b.x - center.x);
-            return angleA.CompareTo(angleB);
-        });
     }
 
     public List<(Vector2, Vector2)> GetVoronoiEdges() => _voronoiEdges;
-    public Dictionary<Sommet, List<Vector2>> GetVoronoiRegions() => _voronoiRegions;
-    public List<Vector2> GetCenters() => _centers;
 }
