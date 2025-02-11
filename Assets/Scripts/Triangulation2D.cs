@@ -420,23 +420,16 @@ public class Triangulation2D : MonoBehaviour
                 _sommets.Clear();
                 _pointListPosition.Clear();
             }
-            // A-2 | S est aux extrémités
             else
             {
                 int index = _pointListPosition.IndexOf(position);
-                // Premier
-                if (index == 0)
+                // A-2 | S est aux extrémités
+                if (index == 0 || index == _pointListPosition.Count - 1)
                 {
                     DeleteArete(_sommets[index].aretes[0]);
                     DeleteSommet(_sommets[index], indices);
                 }
-                // Dernier
-                else if (index == _pointListPosition.Count - 1)
-                {
-                    _sommets.RemoveAt(index);
-                    _pointListPosition.RemoveAt(index);
-                }
-                // Entre deux sommets
+                // A-3 | Entre deux sommets
                 else
                 {
                     Sommet s = _sommets.Find(s => s.p == position);
@@ -452,8 +445,8 @@ public class Triangulation2D : MonoBehaviour
         else
         {
             // B-1 | Suppression de toutes les arêtes et triangles lié au sommet s
-            Sommet s = _sommets.Find(s => s.p == position);
-            List<Arete> La1 = new List<Arete>(s.aretes);
+            Sommet sommetADelete = _sommets.Find(s => s.p == position);
+            List<Arete> La1 = new List<Arete>(sommetADelete.aretes);
             List<Triangle> Lt = new List<Triangle>();
             List<Arete> La2 = new List<Arete>();
             foreach (var arete in La1)
@@ -466,13 +459,13 @@ public class Triangulation2D : MonoBehaviour
             
             foreach(var triangle in Lt)
             {
-                La2.Add(triangle.GetAreteOppose(s));
+                La2.Add(triangle.GetAreteOppose(sommetADelete));
                 DeleteTriangle(triangle, indices);
             }
             foreach (var arete in La1)
                 DeleteArete(arete);
             
-            DeleteSommet(s, indices);
+            DeleteSommet(sommetADelete, indices);
             
             // B-2
             List<Sommet> uniqueSommet = new List<Sommet>();
@@ -487,47 +480,55 @@ public class Triangulation2D : MonoBehaviour
             // B-2-1 | La2 forme un polygone fermé (nb_sommets == nb_arêtes)
             if (uniqueSommet.Count == La2.Count)
             {
+                int i = 0;
+                List<Sommet> realConvexeSommet = new List<Sommet>(uniqueSommet) { sommetADelete };
+                List<Sommet> sommetConvexeList = GrahamScanAlgorithm(realConvexeSommet);
+                sommetConvexeList.Remove(sommetADelete);
                 while (La2.Count > 3)
                 {
-                    s = uniqueSommet[0];
-                    List<Arete> temp = new List<Arete>(La2);
-                    Arete a1 = temp.Find(a => a.s1 == s || a.s2 == s);
-                    temp.Remove(a1);
-                    Arete a2 = temp.Find(a => a.s1 == s || a.s2 == s);
-                    Sommet s1 = a1.s1 != s ? a1.s1 : a1.s2;
-                    Sommet s2 = a2.s1 != s ? a2.s1 : a2.s2;
-                    List<Sommet> tempSommet = new List<Sommet>(uniqueSommet);
-                    tempSommet.Remove(s);
-                    tempSommet.Remove(s1);
-                    tempSommet.Remove(s2);
-                    bool isDelaunay = true;
-                    foreach (var sommet in tempSommet)
+                    i = 0;
+                    foreach (var sommetConvexe in sommetConvexeList)
                     {
-                        if (!IsLocalDelaunay(s.p, s1.p, s2.p, sommet.p))
+                        List<Arete> temp = new List<Arete>(La2);
+                        Arete a1 = temp.Find(a => a.s1 == sommetConvexe || a.s2 == sommetConvexe);
+                        temp.Remove(a1);
+                        Arete a2 = temp.Find(a => a.s1 == sommetConvexe || a.s2 == sommetConvexe);
+                        Sommet s1 = a1.s1 != sommetConvexe ? a1.s1 : a1.s2;
+                        Sommet s2 = a2.s1 != sommetConvexe ? a2.s1 : a2.s2;
+                        List<Sommet> tempSommet = new List<Sommet>(uniqueSommet);
+                        tempSommet.Remove(sommetConvexe);
+                        tempSommet.Remove(s1);
+                        tempSommet.Remove(s2);
+                        bool isDelaunay = true;
+                        foreach (var sommet in tempSommet)
                         {
-                            isDelaunay = false;
+                            if (!IsLocalDelaunay(sommetConvexe.p, s1.p, s2.p, sommet.p))
+                            {
+                                isDelaunay = false;
+                                break;
+                            }
+                        }
+
+                        if (isDelaunay)
+                        {
+                            uniqueSommet.Remove(sommetConvexe);
+                            Arete a3 = new Arete(s1, s2);
+                            _aretes.Add(a3);
+                            Triangle t = CreateTriangle2D(a3, sommetConvexe);
+                            indices.AddRange(t.GetIndices());
+
+                            La2.Remove(a1);
+                            La2.Remove(a2);
+                            La2.Add(a3);
+                            sommetConvexeList = GrahamScanAlgorithm(uniqueSommet);
                             break;
                         }
+                        else
+                        {
+                            i++;
+                            continue;
+                        }
                     }
-
-                    if (isDelaunay)
-                    {
-                        uniqueSommet.RemoveAt(0);
-                        Arete a3 = new Arete(s1, s2);
-                        Triangle t = CreateTriangle2D(a3, s);
-                        indices.AddRange(t.GetIndices());
-
-                        La2.Remove(a1);
-                        La2.Remove(a2);
-                        La2.Add(a3);
-                    }
-                    else
-                    {
-                        Sommet temp2 = uniqueSommet[0];
-                        uniqueSommet.RemoveAt(0);
-                        uniqueSommet.Add(temp2);
-                    }
-                    
                 }
                 
                 Arete arete = La2[0];
@@ -538,52 +539,68 @@ public class Triangulation2D : MonoBehaviour
             // B-2-2 | La2 ne forme pas de polygone fermé
             else
             {
-                while (uniqueSommet.Count > 0)
+                int i = 0;
+                List<Sommet> realConvexeSommet = new List<Sommet>(uniqueSommet) { sommetADelete };
+                List<Sommet> sommetConvexeList = GrahamScanAlgorithm(realConvexeSommet);
+                sommetConvexeList.Remove(sommetADelete);
+                // Tant qu'il reste un sommet s convexe
+                while (uniqueSommet.Count > 2 && sommetConvexeList.Count > 0 && i < sommetConvexeList.Count)
                 {
-                    s = uniqueSommet[0];
-                    List<Arete> temp = new List<Arete>(La2);
-                    Arete a1 = temp.Find(a => a.s1 == s || a.s2 == s);
-                    temp.Remove(a1);
-                    Arete a2 = temp.Find(a => a.s1 == s || a.s2 == s);
-                    if (a2 == null)
+                    Debug.Log(" ================== ");
+                    foreach (var s in sommetConvexeList)
                     {
-                        uniqueSommet.RemoveAt(0);
-                        continue;
+                        Debug.Log(s.index);
                     }
-                    Sommet s1 = a1.s1 != s ? a1.s1 : a1.s2;
-                    Sommet s2 = a2.s1 != s ? a2.s1 : a2.s2;
-                    List<Sommet> tempSommet = new List<Sommet>(uniqueSommet);
-                    tempSommet.Remove(s);
-                    tempSommet.Remove(s1);
-                    tempSommet.Remove(s2);
-                    bool isDelaunay = true;
-                    foreach (var sommet in tempSommet)
+
+                    i = 0;
+                    foreach (var sommetConvexe in sommetConvexeList)
                     {
-                        if (!IsLocalDelaunay(s.p, s1.p, s2.p, sommet.p))
+                        i++;
+                        List<Arete> temp = new List<Arete>(La2);
+                        Arete a1 = temp.Find(a => a.s1 == sommetConvexe || a.s2 == sommetConvexe);
+                        temp.Remove(a1);
+                        Arete a2 = temp.Find(a => a.s1 == sommetConvexe || a.s2 == sommetConvexe);
+                        // S'il ne possède pas 2 arêtes incidentes, on passe au sommet suivant
+                        if (a2 == null)
+                            continue;
+                        // Vérification si l'arête respecte la règle de Delaunay pour tout les sommets de La2
+                        Sommet s1 = a1.s1 != sommetConvexe ? a1.s1 : a1.s2;
+                        Sommet s2 = a2.s1 != sommetConvexe ? a2.s1 : a2.s2;
+                        List<Sommet> tempSommet = new List<Sommet>(uniqueSommet);
+                        tempSommet.Remove(sommetConvexe);
+                        tempSommet.Remove(s1);
+                        tempSommet.Remove(s2);
+                        bool isDelaunay = true;
+                        foreach (var sommet in tempSommet)
                         {
-                            isDelaunay = false;
+                            if (!IsLocalDelaunay(sommetConvexe.p, s1.p, s2.p, sommet.p))
+                            {
+                                isDelaunay = false;
+                                break;
+                            }
+                        }
+                        if (isDelaunay)
+                        {
+                            uniqueSommet.Remove(sommetConvexe);
+                            Arete a3 = new Arete(s1, s2);
+                            _aretes.Add(a3);
+                            Triangle t = CreateTriangle2D(a3, sommetConvexe);
+                            indices.AddRange(t.GetIndices());
+
+                            La2.Remove(a1);
+                            La2.Remove(a2);
+                            La2.Add(a3);
+                            sommetConvexeList = GrahamScanAlgorithm(uniqueSommet);
                             break;
                         }
-                    }
-                    if (isDelaunay)
-                    {
-                        uniqueSommet.RemoveAt(0);
-                        Arete a3 = new Arete(s1, s2);
-                        Triangle t = CreateTriangle2D(a3, s);
-                        indices.AddRange(t.GetIndices());
-
-                        La2.Remove(a1);
-                        La2.Remove(a2);
-                        La2.Add(a3);
-                    }
-                    else
-                    {
-                        Sommet temp2 = uniqueSommet[0];
-                        uniqueSommet.RemoveAt(0);
-                        uniqueSommet.Add(temp2);
+                        else
+                        {
+                            continue;
+                        }
                     }
                 }
             }
+            
             mesh.triangles = indices.ToArray();
             mesh.vertices = _pointListPosition.ToArray();
             mesh.RecalculateNormals();
@@ -835,8 +852,8 @@ public class Triangulation2D : MonoBehaviour
     
     private List<Vector3> GrahamScanAlgorithm()
     {
-        // Debug : Affichage du Barycentre
         Vector3 B = getBarycenter(_pointListPosition);
+        // Debug : Affichage du Barycentre
         barycenter.position = B;
 
         // Triage des points dans l'ordre croissant en fonction de l'angle du point avec le barycentre dans le sens trigonométrique
@@ -888,6 +905,59 @@ public class Triangulation2D : MonoBehaviour
         
     }
 
+    private List<Sommet> GrahamScanAlgorithm(List<Sommet> sommets)
+    {
+        List<Sommet> sommetList = new List<Sommet>(sommets);
+        Vector3 B = getBarycenter(sommetList.Select(s => s.p).ToList());
+
+        // Triage des points dans l'ordre croissant en fonction de l'angle du point avec le barycentre dans le sens trigonométrique
+        List<float> angles = new List<float>();
+        
+        foreach (var sommet in sommets)
+            angles.Add(get360Angle(Vector3.right, sommet.p - B));
+        
+        LinkedList<Sommet> linkedListPoints = new LinkedList<Sommet>();
+
+        for (int i = 0; i < sommets.Count; ++i)
+        {
+            int minIndex = 0;
+            for (int j = 1; j < angles.Count; ++j)
+                if (angles[j] < angles[minIndex]) minIndex = j;
+
+            linkedListPoints.AddLast(sommetList[minIndex]);
+            
+            angles.RemoveAt(minIndex);
+            sommetList.RemoveAt(minIndex);
+        }
+
+        // Cours 3 page 18
+        // Utilisation d'une liste double chainée circulaire
+        // Suppression des points non convexes pour avoir l'enveloppe convexe
+        
+        LinkedListNode<Sommet> s0 = linkedListPoints.First;
+        LinkedListNode<Sommet> pivot = s0;
+        bool avance;
+        do
+        {
+            if (linkedListPoints.Count == 0)
+                return new List<Sommet>();
+            if (get360Angle(pivot.PreviousOrLast().Value.p - pivot.Value.p, pivot.NextOrFirst().Value.p - pivot.Value.p) > 180)
+            {
+                pivot = pivot.NextOrFirst();
+                avance = true;
+            }
+            else
+            {
+                s0 = pivot.PreviousOrLast();
+                linkedListPoints.Remove(pivot);
+                pivot = s0;
+                avance = false;
+            }
+        } while (pivot != s0 || avance == false);
+
+        return linkedListPoints.ToList();
+    }
+
     private Vector3 getBarycenter(List<Vector3> pList)
     {
         Vector3 res = Vector3.zero;
@@ -924,6 +994,7 @@ public class Triangulation2D : MonoBehaviour
 
     public void DebugTriangles()
     {
+        /*
         StartCoroutine(DebugTriangle());
         int[] indices = _meshFilter.mesh.triangles;
         
@@ -935,7 +1006,10 @@ public class Triangulation2D : MonoBehaviour
         foreach (var triangle in _triangles)
         {
             Debug.Log(triangle.index + ", sommets: " + triangle.sommets[0].index + " " + triangle.sommets[1].index + " " + triangle.sommets[2].index);
-        }
+        }*/
+        Debug.Log("Triangles : " + _triangles.Count());
+        Debug.Log("Arêtes : " + _aretes.Count());
+        Debug.Log("Sommets : " + _sommets.Count());
     }
     
     public IEnumerator DebugTriangle()

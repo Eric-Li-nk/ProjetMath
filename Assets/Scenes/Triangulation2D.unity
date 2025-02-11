@@ -1577,6 +1577,7 @@ MonoBehaviour:
   _meshFilter: {fileID: 526129328}
   barycenter: {fileID: 1591085919}
   algoIndex: 0
+  _voronoiLineRenderer: {fileID: 0}
 --- !u!1 &769296238
 GameObject:
   m_ObjectHideFlags: 0
