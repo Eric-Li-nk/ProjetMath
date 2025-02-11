@@ -11,6 +11,11 @@ public class GeometryUtility
         Vector2 b = t1.sommets[1].p;
         Vector2 c = t1.sommets[2].p;
 
+        return CentreCercleCirconscrit(a, b, c);
+    }
+    
+    public static Vector2 CentreCercleCirconscrit(Vector2 a, Vector2 b, Vector2 c)
+    {
         float delta = 2 * (((a.x * b.y) - (b.x * a.y)) - ((a.x * c.y) - (c.x * a.y)) + ((b.x * c.y) - (c.x * b.y)));
 
         float x = (
