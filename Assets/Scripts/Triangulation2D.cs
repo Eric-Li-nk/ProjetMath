@@ -567,37 +567,6 @@ public class Triangulation2D : MonoBehaviour
         algoIndex = value;
     }
 
-
-    public void GenerateAndDrawVoronoi()
-    {
-        _voronoiDiagram.GenerateVoronoi(_triangles, _aretes, _sommets);
-        var edges = _voronoiDiagram.GetVoronoiEdges();
-
-        if (GameObject.FindGameObjectsWithTag("VoronoiLine") != null)
-        {
-            var oldLines = GameObject.FindGameObjectsWithTag("VoronoiLine");
-            foreach (var line in oldLines)
-            {
-                DestroyImmediate(line);
-            }
-        }
-        
-        foreach (var edge in edges)
-        {
-            GameObject lineObj = new GameObject("VoronoiLine");
-            lineObj.tag = "VoronoiLine";
-            LineRenderer lineRenderer = lineObj.AddComponent<LineRenderer>();
-
-            lineRenderer.startWidth = _voronoiLineRenderer.startWidth;
-            lineRenderer.endWidth = _voronoiLineRenderer.endWidth;
-            lineRenderer.material = _voronoiLineRenderer.material;
-
-            lineRenderer.positionCount = 2;
-            lineRenderer.SetPosition(0, edge.Item1);
-            lineRenderer.SetPosition(1, edge.Item2);
-        }
-    }
-
     public void ClearAll()
     {
         _pointListPosition.Clear();
