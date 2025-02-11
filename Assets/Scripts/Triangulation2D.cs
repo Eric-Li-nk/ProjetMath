@@ -26,7 +26,7 @@ public class Triangulation2D : MonoBehaviour
     public List<Vector3> _pointListPosition = new ();
 
     public int algoIndex = 0;
-    private bool usingDelaunay = true; // A CHANGER A FALSE
+    private bool usingDelaunay = false; // A CHANGER A FALSE
     
     public List<Sommet> _sommets;
     private List<Arete> _aretes;
