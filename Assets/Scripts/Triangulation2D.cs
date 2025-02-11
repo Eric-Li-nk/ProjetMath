@@ -14,7 +14,7 @@ public class Triangulation2D : MonoBehaviour
     [SerializeField] private GameObject _pointPrefab;
     
     // On rangera les points générés dans un gameobject pour que ça soit plus lisible
-    [SerializeField] private Transform _pointListTransform;
+    public Transform _pointListTransform;
 
     [SerializeField] private LineRenderer _lineRenderer;
 
@@ -23,12 +23,12 @@ public class Triangulation2D : MonoBehaviour
     // Helper : to see the barycenter
     [SerializeField] private Transform barycenter;
 
-    private List<Vector3> _pointListPosition = new ();
+    public List<Vector3> _pointListPosition = new ();
 
     public int algoIndex = 0;
-    private bool usingDelaunay = true; // A CHANGER A FALSE
+    private bool usingDelaunay = false; // A CHANGER A FALSE
     
-    private List<Sommet> _sommets;
+    public List<Sommet> _sommets;
     private List<Arete> _aretes;
     private List<Triangle> _triangles;
     
@@ -1028,18 +1028,31 @@ public class Triangulation2D : MonoBehaviour
     public void GenerateAndDrawVoronoi()
     {
         _voronoiDiagram.GenerateVoronoi(_triangles, _aretes, _sommets);
-
         var edges = _voronoiDiagram.GetVoronoiEdges();
-        var positions = new Vector3[edges.Count * 2];
 
-        for (int i = 0; i < edges.Count; i++)
+        if (GameObject.FindGameObjectsWithTag("VoronoiLine") != null)
         {
-            positions[i * 2] = edges[i].Item1;
-            positions[i * 2 + 1] = edges[i].Item2;
+            var oldLines = GameObject.FindGameObjectsWithTag("VoronoiLine");
+            foreach (var line in oldLines)
+            {
+                DestroyImmediate(line);
+            }
         }
 
-        _voronoiLineRenderer.positionCount = positions.Length;
-        _voronoiLineRenderer.SetPositions(positions);
+        foreach (var edge in edges)
+        {
+            GameObject lineObj = new GameObject("VoronoiLine");
+            lineObj.tag = "VoronoiLine";
+            LineRenderer lineRenderer = lineObj.AddComponent<LineRenderer>();
+
+            lineRenderer.startWidth = _voronoiLineRenderer.startWidth;
+            lineRenderer.endWidth = _voronoiLineRenderer.endWidth;
+            lineRenderer.material = _voronoiLineRenderer.material;
+
+            lineRenderer.positionCount = 2;
+            lineRenderer.SetPosition(0, edge.Item1);
+            lineRenderer.SetPosition(1, edge.Item2);
+        }
     }
 
     public void ClearAll()
@@ -1063,6 +1076,11 @@ public class Triangulation2D : MonoBehaviour
         if (_voronoiLineRenderer != null)
         {
             _voronoiLineRenderer.positionCount = 0;
+            var Lines = GameObject.FindGameObjectsWithTag("VoronoiLine");
+            foreach (var line in Lines)
+            {
+                DestroyImmediate(line);
+            }
         }
 
         if (_meshFilter != null && _meshFilter.mesh != null)
@@ -1072,6 +1090,7 @@ public class Triangulation2D : MonoBehaviour
 
         Triangle.counter = 0;
     }
+
 
 }
     
@@ -1088,3 +1107,4 @@ public static class CircularLinkedList
         return current.Previous ?? current.List.Last;
     }
 }
+
