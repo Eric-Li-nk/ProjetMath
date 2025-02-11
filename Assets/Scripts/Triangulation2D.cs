@@ -14,7 +14,7 @@ public class Triangulation2D : MonoBehaviour
     [SerializeField] private GameObject _pointPrefab;
     
     // On rangera les points générés dans un gameobject pour que ça soit plus lisible
-    [SerializeField] private Transform _pointListTransform;
+    public Transform _pointListTransform;
 
     [SerializeField] private LineRenderer _lineRenderer;
 
@@ -23,12 +23,12 @@ public class Triangulation2D : MonoBehaviour
     // Helper : to see the barycenter
     [SerializeField] private Transform barycenter;
 
-    private List<Vector3> _pointListPosition = new ();
+    public List<Vector3> _pointListPosition = new ();
 
     public int algoIndex = 0;
     private bool usingDelaunay = true; // A CHANGER A FALSE
     
-    private List<Sommet> _sommets;
+    public List<Sommet> _sommets;
     private List<Arete> _aretes;
     private List<Triangle> _triangles;
     
