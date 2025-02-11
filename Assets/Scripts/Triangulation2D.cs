@@ -1002,6 +1002,11 @@ public class Triangulation2D : MonoBehaviour
         if (_voronoiLineRenderer != null)
         {
             _voronoiLineRenderer.positionCount = 0;
+            var Lines = GameObject.FindGameObjectsWithTag("VoronoiLine");
+            foreach (var line in Lines)
+            {
+                DestroyImmediate(line);
+            }
         }
 
         if (_meshFilter != null && _meshFilter.mesh != null)
