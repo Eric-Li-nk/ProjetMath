@@ -15,9 +15,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
     // Lista de tetraedros (resultado de la triangulacion de Delaunay en R3)
     private List<Tetrahedron3D> delaunayTetrahedra;
 
-    // =====================================================
-    // CLASES AUXILIARES
-    // =====================================================
 
     // Representa un punto elevado en R4: (x,y,z, x^2+y^2+z^2)
     public class Vertex4D
@@ -37,7 +34,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
         public Vertex4D p1, p2, p3, p4;
         public Facet4D(Vertex4D p1, Vertex4D p2, Vertex4D p3, Vertex4D p4)
         {
-            // Ordenamos los vertices por indice para tener un orden canonico.
             List<Vertex4D> pts = new List<Vertex4D> { p1, p2, p3, p4 };
             pts.Sort((a, b) => a.index.CompareTo(b.index));
             this.p1 = pts[0];
@@ -57,11 +53,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
         }
     }
 
-    // =====================================================
-    // FUNCIONES MATEMATICAS EN R4
-    // =====================================================
-
-    // Calcula el determinante de una matriz 3x3 dada por tres Vector3.
     float Determinant3(Vector3 u, Vector3 v, Vector3 w)
     {
         return u.x * (v.y * w.z - v.z * w.y)
@@ -69,8 +60,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
              + u.z * (v.x * w.y - v.y * w.x);
     }
 
-    // Calcula la "normal" de un hiperplano en R4 definido por 4 puntos: p1, p2, p3, p4.
-    // Se obtiene un vector N = (n0, n1, n2, n3) mediante determinantes 3x3.
     Vector4 ComputeNormal4D(Vector4 p1, Vector4 p2, Vector4 p3, Vector4 p4)
     {
         Vector4 v = p2 - p1;
@@ -91,10 +80,7 @@ public class DelaunayTriangulation3D : MonoBehaviour
         return new Vector4(n0, n1, n2, n3);
     }
 
-    // =====================================================
-    // METODO PRINCIPAL: Triangulacion de Delaunay por lifting
-    // =====================================================
-    public void ComputeDelaunayLifting()
+    public void ComputeDelaunay()
     {
         // 1. Elevar los puntos R3 a R4.
         List<Vertex4D> liftedPoints = new List<Vertex4D>();
@@ -103,17 +89,16 @@ public class DelaunayTriangulation3D : MonoBehaviour
         {
             Vector3 p = child.position;
             float quad = p.x * p.x + p.y * p.y + p.z * p.z;
-            // Elevar: (x,y,z) -> (x,y,z, x^2+y^2+z^2)
             Vector4 p4 = new Vector4(p.x, p.y, p.z, quad);
             liftedPoints.Add(new Vertex4D(idx, p4));
             idx++;
         }
         int n = liftedPoints.Count;
 
-        // Lista para almacenar las facetas "inferiores" (de la envolvente en R4).
+        // Lista para almacenar las facetas "inferiores" (de la envolvente en R4)
         List<Facet4D> lowerFacets = new List<Facet4D>();
 
-        // 2. Recorrer todas las combinaciones de 4 puntos (brute-force).
+        // 2. Recorrer todas las combinaciones de 4 puntos (brute-force)
         for (int i = 0; i < n - 3; i++)
         {
             for (int j = i + 1; j < n - 2; j++)
@@ -126,18 +111,10 @@ public class DelaunayTriangulation3D : MonoBehaviour
                         Vertex4D p2 = liftedPoints[j];
                         Vertex4D p3 = liftedPoints[k];
                         Vertex4D p4 = liftedPoints[l];
-
-                        // Calcular la normal en R4 del hiperplano definido por estos 4 puntos.
                         Vector4 normal = ComputeNormal4D(p1.pos, p2.pos, p3.pos, p4.pos);
-                        if (normal.sqrMagnitude < tolerance) continue; // omitir casos degenerados
-
-                        // Forzar la orientacion: queremos que la componente w sea NEGATIVA.
+                        if (normal.sqrMagnitude < tolerance) continue;
                         if (normal.w > 0) normal = -normal;
-
-                        // Calcular c tal que para los puntos en el hiperplano: N dot P = c.
                         float c = Vector4.Dot(normal, p1.pos);
-
-                        // Verificar que todos los otros puntos estan (o en el mismo lado) DEBAJO del hiperplano.
                         bool isFacet = true;
                         for (int m = 0; m < n; m++)
                         {
@@ -150,8 +127,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
                             }
                         }
                         if (!isFacet) continue;
-
-                        // Agregar la faceta a la lista.
                         lowerFacets.Add(new Facet4D(p1, p2, p3, p4));
                     }
                 }
@@ -159,7 +134,7 @@ public class DelaunayTriangulation3D : MonoBehaviour
         }
         Debug.Log("Numero de facetas inferiores encontradas: " + lowerFacets.Count);
 
-        // 3. Proyectar cada faceta (los 4 puntos) a R3 (descartar la coordenada w) para obtener un tetraedro.
+        // 3. Proyectar cada faceta a R3 para obtener un tetraedro
         delaunayTetrahedra = new List<Tetrahedron3D>();
         foreach (Facet4D facet in lowerFacets)
         {
@@ -171,18 +146,13 @@ public class DelaunayTriangulation3D : MonoBehaviour
         }
         Debug.Log("Triangulacion de Delaunay calculada: " + delaunayTetrahedra.Count + " tetraedros.");
 
-        // 4. Construir y asignar un Mesh que pinte la superficie externa.
+        // 4. Construir y asignar un Mesh que pinte la superficie externa
         DrawDelaunayMesh();
 
-        // 5. Dibujar los bordes en el juego.
+        // 5. Dibujar los bordes en el juego
         DrawDelaunayEdges();
     }
 
-    // =====================================================
-    // FUNCIONES AUXILIARES PARA CONSTRUIR EL MESH (USANDO CLAVES CON REDONDEO)
-    // =====================================================
-
-    // Genera una clave unica para un Vector3 redondeando sus componentes.
     string GetVectorKey(Vector3 v)
     {
         float rx = Mathf.Round(v.x * 10000f) / 10000f;
@@ -191,7 +161,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
         return rx.ToString("F4") + "_" + ry.ToString("F4") + "_" + rz.ToString("F4");
     }
 
-    // Genera una clave unica para una cara (triangulo) a partir de 3 vertices.
     string FaceKey(Vector3 v1, Vector3 v2, Vector3 v3)
     {
         List<string> keys = new List<string> { GetVectorKey(v1), GetVectorKey(v2), GetVectorKey(v3) };
@@ -199,19 +168,13 @@ public class DelaunayTriangulation3D : MonoBehaviour
         return keys[0] + keys[1] + keys[2];
     }
 
-    // =====================================================
-    // CONSTRUCCION DEL MESH DELAUNAY A PARTIR DE LOS TETRAEDROS (extrayendo las caras externas)
-    // =====================================================
     void DrawDelaunayMesh()
     {
-        // --- Borrar Mesh anterior (si existe) ---
         GameObject oldMesh = GameObject.Find("DelaunayMesh");
         if (oldMesh != null)
         {
             DestroyImmediate(oldMesh);
         }
-
-        // --- Contar las apariciones de cada cara (usando la clave de cara) ---
         Dictionary<string, int> faceCount = new Dictionary<string, int>();
         foreach (Tetrahedron3D tet in delaunayTetrahedra)
         {
@@ -230,8 +193,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
                     faceCount[key] = 1;
             }
         }
-
-        // --- Extraer las caras que aparecen una sola vez (la superficie externa) ---
         List<Vector3[]> boundaryFaces = new List<Vector3[]>();
         foreach (Tetrahedron3D tet in delaunayTetrahedra)
         {
@@ -248,8 +209,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
                     boundaryFaces.Add(face);
             }
         }
-
-        // --- Calcular el centro de todos los puntos originales (para orientar las caras) ---
         Vector3 hullCenter = Vector3.zero;
         int pointCount = 0;
         foreach (Transform child in pointsParent)
@@ -259,8 +218,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
         }
         if (pointCount > 0)
             hullCenter /= pointCount;
-
-        // --- Corregir la orientacion de cada cara para que la normal apunte hacia afuera ---
         foreach (Vector3[] face in boundaryFaces)
         {
             Vector3 centroid = (face[0] + face[1] + face[2]) / 3f;
@@ -274,19 +231,15 @@ public class DelaunayTriangulation3D : MonoBehaviour
                 face[2] = temp;
             }
         }
-
-        // --- Construir listas para vertices y triangulos del Mesh ---
         List<Vector3> meshVertices = new List<Vector3>();
         List<int> meshTriangles = new List<int>();
         Dictionary<string, int> vertexToIndex = new Dictionary<string, int>();
-
         foreach (Vector3[] face in boundaryFaces)
         {
             int i1, i2, i3;
             string key1 = GetVectorKey(face[0]);
             string key2 = GetVectorKey(face[1]);
             string key3 = GetVectorKey(face[2]);
-
             if (!vertexToIndex.ContainsKey(key1))
             {
                 i1 = meshVertices.Count;
@@ -294,8 +247,9 @@ public class DelaunayTriangulation3D : MonoBehaviour
                 vertexToIndex[key1] = i1;
             }
             else
+            {
                 i1 = vertexToIndex[key1];
-
+            }
             if (!vertexToIndex.ContainsKey(key2))
             {
                 i2 = meshVertices.Count;
@@ -303,8 +257,9 @@ public class DelaunayTriangulation3D : MonoBehaviour
                 vertexToIndex[key2] = i2;
             }
             else
+            {
                 i2 = vertexToIndex[key2];
-
+            }
             if (!vertexToIndex.ContainsKey(key3))
             {
                 i3 = meshVertices.Count;
@@ -312,34 +267,27 @@ public class DelaunayTriangulation3D : MonoBehaviour
                 vertexToIndex[key3] = i3;
             }
             else
+            {
                 i3 = vertexToIndex[key3];
-
+            }
             meshTriangles.Add(i1);
             meshTriangles.Add(i2);
             meshTriangles.Add(i3);
         }
-
         Mesh mesh = new Mesh();
         mesh.vertices = meshVertices.ToArray();
         mesh.triangles = meshTriangles.ToArray();
         mesh.RecalculateNormals();
-
         GameObject delaunayObj = new GameObject("DelaunayMesh");
         delaunayObj.transform.position = Vector3.zero;
         MeshFilter mf = delaunayObj.AddComponent<MeshFilter>();
         MeshRenderer mr = delaunayObj.AddComponent<MeshRenderer>();
         mf.mesh = mesh;
         mr.material = delaunayMaterial;
-
         Debug.Log("Mesh Delaunay construido con " + (meshTriangles.Count / 3) + " triangulos.");
     }
-
-    // =====================================================
-    // DIBUJAR LOS BORDES EN EL GAME (crear un Mesh con topologia Lines)
-    // =====================================================
     void DrawDelaunayEdges()
     {
-        // --- Extraer las mismas caras externas que en DrawDelaunayMesh ---
         Dictionary<string, int> faceCount = new Dictionary<string, int>();
         foreach (Tetrahedron3D tet in delaunayTetrahedra)
         {
@@ -374,8 +322,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
                     boundaryFaces.Add(face);
             }
         }
-
-        // --- Extraer los bordes unicos de las caras ---
         Dictionary<string, (Vector3, Vector3)> edgeDict = new Dictionary<string, (Vector3, Vector3)>();
         foreach (Vector3[] face in boundaryFaces)
         {
@@ -383,7 +329,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
             AddEdge(face[1], face[2], edgeDict);
             AddEdge(face[2], face[0], edgeDict);
         }
-
         List<Vector3> edgeVertices = new List<Vector3>();
         List<int> edgeIndices = new List<int>();
         int indexCounter = 0;
@@ -397,11 +342,9 @@ public class DelaunayTriangulation3D : MonoBehaviour
             edgeIndices.Add(indexCounter + 1);
             indexCounter += 2;
         }
-
         Mesh edgeMesh = new Mesh();
         edgeMesh.vertices = edgeVertices.ToArray();
         edgeMesh.SetIndices(edgeIndices.ToArray(), MeshTopology.Lines, 0);
-
         GameObject oldEdges = GameObject.Find("DelaunayEdges");
         if (oldEdges != null)
         {
@@ -413,11 +356,9 @@ public class DelaunayTriangulation3D : MonoBehaviour
         MeshRenderer mrEdge = edgeObj.AddComponent<MeshRenderer>();
         mfEdge.mesh = edgeMesh;
         mrEdge.material = delaunayMaterial;
-
         Debug.Log("Bordes Delaunay dibujados.");
     }
 
-    // Funcion auxiliar para anadir un borde de forma unica.
     void AddEdge(Vector3 v1, Vector3 v2, Dictionary<string, (Vector3, Vector3)> edgeDict)
     {
         string key1 = GetVectorKey(v1);
@@ -429,9 +370,6 @@ public class DelaunayTriangulation3D : MonoBehaviour
         }
     }
 
-    // =====================================================
-    // Opcional: Dibujar Gizmos en la Vista de Escena (para depuracion)
-    // =====================================================
     void OnDrawGizmos()
     {
         if (delaunayTetrahedra == null) return;
